@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Product Analysis Dashboard — Architecture</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0f1117;
+    --bg2:       #181c27;
+    --bg3:       #1e2332;
+    --border:    rgba(255,255,255,0.08);
+    --border2:   rgba(255,255,255,0.14);
+    --text:      #e2e4ed;
+    --muted:     #7c8099;
+    --purple:    #8b7cf8;
+    --purple-bg: rgba(139,124,248,0.12);
+    --amber:     #f0a940;
+    --amber-bg:  rgba(240,169,64,0.12);
+    --teal:      #34c9a0;
+    --teal-bg:   rgba(52,201,160,0.12);
+    --coral:     #f07060;
+    --coral-bg:  rgba(240,112,96,0.12);
+    --gray:      #9ca0b0;
+    --gray-bg:   rgba(156,160,176,0.12);
+    --mono:      'JetBrains Mono', 'Fira Mono', monospace;
+    --sans:      'Inter', system-ui, sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 24px 60px;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 40px;
+  }
+  header h1 {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+    color: var(--text);
+  }
+  header p {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+
+  .legend {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-bottom: 36px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .legend-dot {
+    width: 10px; height: 10px; border-radius: 3px;
+  }
+
+  .diagram-wrap {
+    width: 100%;
+    max-width: 780px;
+  }
+
+  svg text { font-family: var(--sans); }
+
+  /* Node styles */
+  .node-purple rect { fill: var(--purple-bg); stroke: var(--purple); stroke-width: 1; }
+  .node-purple .label { fill: var(--purple); font-size: 13px; font-weight: 600; }
+  .node-purple .sublabel { fill: #a89ef8; font-size: 11px; }
+
+  .node-amber rect { fill: var(--amber-bg); stroke: var(--amber); stroke-width: 1; }
+  .node-amber .label { fill: var(--amber); font-size: 13px; font-weight: 600; }
+  .node-amber .sublabel { fill: #c9974a; font-size: 11px; }
+
+  .node-teal rect { fill: var(--teal-bg); stroke: var(--teal); stroke-width: 1; }
+  .node-teal .label { fill: var(--teal); font-size: 13px; font-weight: 600; }
+  .node-teal .sublabel { fill: #5ec9ad; font-size: 11px; }
+
+  .node-coral rect { fill: var(--coral-bg); stroke: var(--coral); stroke-width: 1; }
+  .node-coral .label { fill: var(--coral); font-size: 13px; font-weight: 600; }
+  .node-coral .sublabel { fill: #d4806f; font-size: 11px; }
+
+  .node-gray rect { fill: var(--gray-bg); stroke: var(--gray); stroke-width: 1; }
+  .node-gray .label { fill: var(--gray); font-size: 13px; font-weight: 600; }
+
+  .pydantic-badge rect { fill: rgba(255,255,255,0.04); stroke: rgba(255,255,255,0.12); stroke-width: 0.75; stroke-dasharray: 3 2; }
+  .pydantic-badge .key { fill: #7c8099; font-size: 10px; font-weight: 500; }
+  .pydantic-badge .val { font-size: 10px; font-weight: 600; }
+  .pydantic-badge .val-purple { fill: #a89ef8; }
+  .pydantic-badge .val-amber  { fill: #d4ac6a; }
+
+  .arr { stroke: rgba(255,255,255,0.22); stroke-width: 1; fill: none; }
+  .arr-label { fill: #5a5f78; font-size: 10px; }
+  .leader { stroke: rgba(255,255,255,0.12); stroke-width: 0.75; stroke-dasharray: 3 2; fill: none; }
+
+  .persist-bar rect { fill: rgba(156,160,176,0.07); stroke: rgba(156,160,176,0.2); stroke-width: 0.75; }
+  .persist-bar text { fill: var(--muted); font-size: 10.5px; }
+
+  /* Tooltip */
+  .tooltip {
+    position: fixed;
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 12px;
+    color: var(--text);
+    max-width: 260px;
+    line-height: 1.5;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 99;
+  }
+  .tooltip.show { opacity: 1; }
+  .tooltip .tt-title { font-weight: 600; font-size: 12.5px; margin-bottom: 4px; }
+  .tooltip .tt-code { font-family: var(--mono); font-size: 10.5px; color: var(--muted); background: rgba(255,255,255,0.04); padding: 2px 5px; border-radius: 4px; display: inline-block; margin-top: 3px; }
+
+  .clickable { cursor: pointer; }
+  .clickable rect { transition: filter 0.15s; }
+  .clickable:hover rect { filter: brightness(1.25); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Product Analysis Dashboard</h1>
+  <p>Architecture diagram · hover nodes for detail · Streamlit + OpenAI SDK → OpenRouter (single agent, one call)</p>
+</header>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#8b7cf8"></div>LLM call (OpenRouter)</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#f0a940"></div>Validation gate</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#34c9a0"></div>Data / UI / output</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#f07060"></div>Error path</div>
+  <div class="legend-item"><div class="legend-dot" style="background:rgba(255,255,255,0.08); border:1px dashed rgba(255,255,255,0.2)"></div>Config / prompt detail</div>
+</div>
+
+<div class="diagram-wrap">
+<svg width="100%" viewBox="0 0 780 930" role="img">
+  <title>Product Analysis Dashboard Architecture</title>
+  <desc>Flowchart of the Streamlit product analysis app: startup key check, OpenRouter client, user input, validation, prompt build, single LLM call, then render report or show error.</desc>
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <marker id="arr-muted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="rgba(240,112,96,0.4)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- START -->
+  <g class="node-gray">
+    <rect x="300" y="16" width="180" height="34" rx="17"/>
+    <text class="label" x="390" y="37" text-anchor="middle">streamlit run app.py</text>
+  </g>
+  <line x1="390" y1="50" x2="390" y2="80" class="arr" marker-end="url(#arr)"/>
+
+  <!-- NODE 1: startup key check -->
+  <g class="node-amber clickable" data-tt="startup">
+    <rect x="200" y="80" width="380" height="70" rx="8"/>
+    <text class="label" x="390" y="102" text-anchor="middle">Startup config check</text>
+    <text class="sublabel" x="390" y="119" text-anchor="middle">load_dotenv() → os.getenv("OPENROUTER_API_KEY")</text>
+    <text class="sublabel" x="390" y="134" text-anchor="middle">missing → raise RuntimeError · else continue</text>
+  </g>
+  <!-- RuntimeError side node -->
+  <g class="node-coral clickable" data-tt="keyerr">
+    <rect x="595" y="88" width="170" height="54" rx="8"/>
+    <text class="label" x="680" y="109" text-anchor="middle">RuntimeError</text>
+    <text class="sublabel" x="680" y="126" text-anchor="middle">app fails to start</text>
+  </g>
+  <line x1="580" y1="115" x2="595" y2="115" class="arr" stroke="rgba(240,112,96,0.4)" stroke-dasharray="4 2" marker-end="url(#arr-muted)"/>
+
+  <line x1="390" y1="150" x2="390" y2="180" class="arr" marker-end="url(#arr)"/>
+  <text class="arr-label" x="408" y="165" dominant-baseline="central">key found</text>
+
+  <!-- NODE 2: OpenAI client -->
+  <g class="node-teal clickable" data-tt="client">
+    <rect x="200" y="180" width="380" height="58" rx="8"/>
+    <text class="label" x="390" y="203" text-anchor="middle">OpenAI client → OpenRouter</text>
+    <text class="sublabel" x="390" y="220" text-anchor="middle">base_url = openrouter.ai/api/v1 · HTTP-Referer + X-Title headers</text>
+  </g>
+  <g class="pydantic-badge clickable" data-tt="model">
+    <rect x="595" y="182" width="170" height="54" rx="6"/>
+    <text class="key" x="605" y="196">Model (env override)</text>
+    <text class="val val-purple" x="605" y="212" style="font-family:monospace;font-size:10.5px">openai/gpt-4o-mini</text>
+    <text class="key" x="605" y="228">via OPENROUTER_MODEL</text>
+  </g>
+  <line x1="580" y1="209" x2="595" y2="209" class="leader"/>
+
+  <line x1="390" y1="238" x2="390" y2="268" class="arr" marker-end="url(#arr)"/>
+
+  <!-- NODE 3: Streamlit UI -->
+  <g class="node-teal clickable" data-tt="ui">
+    <rect x="200" y="268" width="380" height="58" rx="8"/>
+    <text class="label" x="390" y="291" text-anchor="middle">main() — Streamlit UI</text>
+    <text class="sublabel" x="390" y="308" text-anchor="middle">st.text_input("product name") + st.button("Analyze Product")</text>
+  </g>
+  <g class="pydantic-badge">
+    <rect x="595" y="270" width="170" height="54" rx="6"/>
+    <text class="key" x="605" y="284">UI shell</text>
+    <text class="val" x="605" y="300" style="fill:#34c9a0;font-size:10.5px;font-family:monospace">st.title + custom CSS</text>
+    <text class="key" x="605" y="316">injected via st.markdown</text>
+  </g>
+  <line x1="580" y1="297" x2="595" y2="297" class="leader"/>
+
+  <line x1="390" y1="326" x2="390" y2="356" class="arr" marker-end="url(#arr)"/>
+  <text class="arr-label" x="408" y="341" dominant-baseline="central">button clicked</text>
+
+  <!-- NODE 4: input validation -->
+  <g class="node-amber clickable" data-tt="validate">
+    <rect x="200" y="356" width="380" height="58" rx="8"/>
+    <text class="label" x="390" y="379" text-anchor="middle">Input validation</text>
+    <text class="sublabel" x="390" y="396" text-anchor="middle">if not product_name → error + return</text>
+  </g>
+  <g class="node-coral clickable" data-tt="emptyerr">
+    <rect x="595" y="358" width="170" height="54" rx="8"/>
+    <text class="label" x="680" y="379" text-anchor="middle">st.error()</text>
+    <text class="sublabel" x="680" y="396" text-anchor="middle">"enter a product name"</text>
+  </g>
+  <line x1="580" y1="385" x2="595" y2="385" class="arr" stroke="rgba(240,112,96,0.4)" stroke-dasharray="4 2" marker-end="url(#arr-muted)"/>
+
+  <line x1="390" y1="414" x2="390" y2="444" class="arr" marker-end="url(#arr)"/>
+  <text class="arr-label" x="408" y="429" dominant-baseline="central">valid</text>
+
+  <!-- NODE 5: build prompts -->
+  <g class="node-teal clickable" data-tt="prompt">
+    <rect x="200" y="444" width="380" height="72" rx="8"/>
+    <text class="label" x="390" y="466" text-anchor="middle">analyze_product() — build prompts</text>
+    <text class="sublabel" x="390" y="483" text-anchor="middle">system: "senior product and business analyst"</text>
+    <text class="sublabel" x="390" y="498" text-anchor="middle">user: product_name + current month (%b %Y)</text>
+  </g>
+  <g class="pydantic-badge clickable" data-tt="sections">
+    <rect x="595" y="440" width="170" height="80" rx="6"/>
+    <text class="key" x="605" y="454">Report sections requested</text>
+    <text class="val val-purple" x="605" y="469" style="font-size:10px">Market demand · ICP</text>
+    <text class="key" x="605" y="482">Marketing strategies (5+)</text>
+    <text class="key" x="605" y="494">Tech / mfg feasibility (5+)</text>
+    <text class="key" x="605" y="506">Scalability · revenue (5+)</text>
+    <text class="key" x="605" y="518">Plan · goals · timeline</text>
+  </g>
+  <line x1="580" y1="480" x2="595" y2="480" class="leader"/>
+
+  <line x1="390" y1="516" x2="390" y2="546" class="arr" marker-end="url(#arr)"/>
+
+  <!-- NODE 6: LLM call -->
+  <g class="node-purple clickable" data-tt="llm">
+    <rect x="200" y="546" width="380" height="70" rx="8"/>
+    <text class="label" x="390" y="568" text-anchor="middle">client.chat.completions.create()</text>
+    <text class="sublabel" x="390" y="585" text-anchor="middle">single call · MODEL · [system, user] messages</text>
+    <text class="sublabel" x="390" y="600" text-anchor="middle">wrapped in st.spinner + loading placeholder</text>
+  </g>
+  <g class="pydantic-badge">
+    <rect x="595" y="554" width="170" height="54" rx="6"/>
+    <text class="key" x="605" y="568">Returns markdown string</text>
+    <text class="val val-purple" x="605" y="584" style="font-size:9.5px;font-family:monospace">choices[0].message.content</text>
+    <text class="key" x="605" y="600">no structured output</text>
+  </g>
+  <line x1="580" y1="581" x2="595" y2="581" class="leader"/>
+
+  <!-- branch -->
+  <path d="M290 616 L230 616 L230 690" class="arr" fill="none" marker-end="url(#arr)"/>
+  <text class="arr-label" x="200" y="655" text-anchor="middle">success</text>
+  <path d="M490 616 L550 616 L550 690" class="arr" fill="none" stroke="rgba(240,112,96,0.4)" stroke-dasharray="5 3" marker-end="url(#arr-muted)"/>
+  <text class="arr-label" x="590" y="655" text-anchor="middle" style="fill:#d4806f">except Exception</text>
+
+  <!-- NODE 7: render -->
+  <g class="node-teal clickable" data-tt="render">
+    <rect x="100" y="690" width="260" height="58" rx="8"/>
+    <text class="label" x="230" y="713" text-anchor="middle">Render report</text>
+    <text class="sublabel" x="230" y="730" text-anchor="middle">st.expander(expanded=True) → st.markdown</text>
+  </g>
+  <!-- NODE 8: api error -->
+  <g class="node-coral clickable" data-tt="apierr">
+    <rect x="420" y="690" width="260" height="58" rx="8"/>
+    <text class="label" x="550" y="713" text-anchor="middle">Show API error</text>
+    <text class="sublabel" x="550" y="730" text-anchor="middle">clear placeholder → st.error(str(e))</text>
+  </g>
+
+  <line x1="230" y1="748" x2="230" y2="790" class="arr"/>
+  <line x1="550" y1="748" x2="550" y2="790" class="arr" stroke="rgba(240,112,96,0.4)" stroke-dasharray="5 3"/>
+  <path d="M230 790 L390 818" class="arr" fill="none" marker-end="url(#arr)"/>
+  <path d="M550 790 L390 818" class="arr" fill="none" marker-end="url(#arr)"/>
+
+  <!-- END -->
+  <g class="node-gray">
+    <rect x="300" y="818" width="180" height="34" rx="17"/>
+    <text class="label" x="390" y="839" text-anchor="middle">END (await next input)</text>
+  </g>
+
+  <!-- persistence bar -->
+  <g class="persist-bar">
+    <rect x="30" y="878" width="720" height="30" rx="6"/>
+    <text x="390" y="897" text-anchor="middle">
+      🖥️  No persistence — report lives only in the Streamlit session; nothing saved to disk, DB or history
+    </text>
+  </g>
+
+  <!-- left sidebar: environment -->
+  <g class="pydantic-badge clickable" data-tt="env">
+    <rect x="14" y="80" width="170" height="158" rx="6"/>
+    <text class="key" x="24" y="96">.env (from .env.example)</text>
+    <text class="val val-amber" x="24" y="112" style="font-size:10px;font-family:monospace">OPENROUTER_API_KEY</text>
+    <text class="val val-amber" x="24" y="126" style="font-size:10px;font-family:monospace">OPENROUTER_MODEL (opt.)</text>
+    <text class="key" x="24" y="146">requirements.txt</text>
+    <text class="val val-purple" x="24" y="162" style="font-size:10px;font-family:monospace">openai · streamlit</text>
+    <text class="val val-purple" x="24" y="176" style="font-size:10px;font-family:monospace">python-dotenv</text>
+    <text class="key" x="24" y="196">Single file: app.py (109 lines)</text>
+    <text class="key" x="24" y="210">No CrewAI / no multi-agent</text>
+    <text class="key" x="24" y="226" style="font-style:italic">Read once at module load</text>
+  </g>
+  <line x1="184" y1="159" x2="200" y2="159" class="leader"/>
+
+</svg>
+</div>
+
+<div class="tooltip" id="tooltip">
+  <div class="tt-title" id="tt-title"></div>
+  <div id="tt-body"></div>
+</div>
+
+<script>
+const tips = {
+  startup: { title: 'Startup config check', body: 'Runs at module import, before any UI. <span class="tt-code">load_dotenv()</span> reads <span class="tt-code">.env</span>, then the app checks <span class="tt-code">OPENROUTER_API_KEY</span>. If it is missing the app stops immediately instead of failing later on the first request.' },
+  keyerr: { title: 'RuntimeError (no key)', body: 'Raised with the message "OPENROUTER_API_KEY is not set. Add it to your .env file before starting the app." Streamlit shows the traceback and nothing else loads.' },
+  client: { title: 'OpenAI client pointed at OpenRouter', body: 'OpenRouter speaks the OpenAI API, so the standard SDK is reused with <span class="tt-code">base_url="https://openrouter.ai/api/v1"</span>. The <span class="tt-code">HTTP-Referer</span> and <span class="tt-code">X-Title</span> headers identify the app on OpenRouter\'s dashboard.' },
+  model: { title: 'MODEL', body: '<span class="tt-code">MODEL = os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini")</span>. Set the env var to swap to any OpenRouter model (Claude, Llama, Gemini…) without code changes.' },
+  ui: { title: 'main() — Streamlit UI', body: 'Renders the title, injects a small CSS block, and shows a text box and an <b>Analyze Product</b> button. Streamlit reruns the whole script on every interaction; the analysis only fires when the button returns True.' },
+  validate: { title: 'Input validation', body: 'The only guard on user input: an empty string is rejected. There is no length limit or sanitisation — <span class="tt-code">product_name</span> goes straight into the prompt f-string.' },
+  emptyerr: { title: 'Empty-input error', body: '<span class="tt-code">st.error("Please enter a product name before starting the analysis.")</span> then <span class="tt-code">return</span> — no API call is made.' },
+  prompt: { title: 'analyze_product() — prompt build', body: 'Builds a system prompt (senior product &amp; business analyst persona) and a user prompt that injects <span class="tt-code">product_name</span> and today\'s month via <span class="tt-code">datetime.now().strftime("%b %Y")</span>, asking for one flowing markdown report.' },
+  sections: { title: 'Requested report sections', body: 'Market demand &amp; ideal customer profile · marketing strategies (≥5) · technology/manufacturing feasibility (≥5) · scalability &amp; revenue streams (≥5) · business plan, goals and launch timeline.' },
+  llm: { title: 'Single LLM call', body: 'One <span class="tt-code">client.chat.completions.create(model=MODEL, messages=[system, user])</span> call — no temperature, no tools, no streaming. A <span class="tt-code">st.info</span> placeholder and <span class="tt-code">st.spinner</span> show progress while it runs.' },
+  render: { title: 'Render report', body: 'Clears the loading placeholder, adds an "Analysis Results" subheader, and shows the markdown inside <span class="tt-code">st.expander(f"Report: {product_name}", expanded=True)</span>.' },
+  apierr: { title: 'API error handling', body: 'A broad <span class="tt-code">except Exception as e</span> catches network, auth, rate-limit or model errors from OpenRouter and shows <span class="tt-code">st.error(f"An error occurred: {str(e)}")</span>.' },
+  env: { title: 'Environment & dependencies', body: 'Copy <span class="tt-code">.env.example</span> → <span class="tt-code">.env</span> and paste your OpenRouter key. Only three packages are needed. Note: <span class="tt-code">document.MD</span> still mentions an OpenAI key, but the code uses OpenRouter.' }
+};
+
+const tt = document.getElementById('tooltip');
+const ttTitle = document.getElementById('tt-title');
+const ttBody = document.getElementById('tt-body');
+
+document.querySelectorAll('[data-tt]').forEach(el => {
+  el.addEventListener('mouseenter', e => {
+    const key = el.dataset.tt;
+    if (!tips[key]) return;
+    ttTitle.textContent = tips[key].title;
+    ttBody.innerHTML = tips[key].body;
+    tt.classList.add('show');
+  });
+  el.addEventListener('mousemove', e => {
+    tt.style.left = (e.clientX + 14) + 'px';
+    tt.style.top  = (e.clientY + 14) + 'px';
+  });
+  el.addEventListener('mouseleave', () => tt.classList.remove('show'));
+});
+</script>
+</body>
+</html>
