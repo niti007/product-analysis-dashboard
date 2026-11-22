@@ -8,28 +8,19 @@ from openai import OpenAI
 # Load environment variables from .env.
 load_dotenv()
 
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-if not OPENROUTER_API_KEY:
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+if not OPENAI_API_KEY:
     raise RuntimeError(
-        "OPENROUTER_API_KEY is not set. Add it to your .env file before starting the app."
+        "OPENAI_API_KEY is not set. Add it to your .env file before starting the app."
     )
 
-# OpenRouter exposes an OpenAI-compatible API, so the OpenAI SDK can be used with
-# OpenRouter's endpoint and an OpenRouter model ID.
-client = OpenAI(
-    api_key=OPENROUTER_API_KEY,
-    base_url="https://openrouter.ai/api/v1",
-    default_headers={
-        "HTTP-Referer": "https://github.com/niti007/product-analysis-dashboard",
-        "X-Title": "Product Analysis Dashboard",
-    },
-)
+client = OpenAI(api_key=OPENAI_API_KEY)
 
-MODEL = os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini")
+MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
 
 def analyze_product(product_name):
-    """Make one OpenRouter call and return a full product-analysis report."""
+    """Make one OpenAI call and return a full product-analysis report."""
     current_date = datetime.now().strftime("%b %Y")
 
     system_prompt = (
